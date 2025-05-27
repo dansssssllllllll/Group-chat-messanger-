@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Messenger Group Chat</title>
+  <style>
+    body {
+      margin: 0; font-family: Arial, sans-serif; background: #1e1e2f; color: white;
+      display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;
+    }
+    .container { width: 100%; max-width: 400px; padding: 20px; }
+    input, button {
+      width: 100%; padding: 10px; margin: 8px 0; border: none; border-radius: 5px;
+    }
+    button { background-color: #03a9f4; color: white; font-weight: bold; }
+    .messages {
+      height: 300px; overflow-y: scroll; background: #2e2e3f; padding: 10px; border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    .message { margin-bottom: 10px; }
+    .message .verified { color: #03a9f4; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="auth">
+      <h2>Login / Sign Up</h2>
+      <input type="text" id="username" placeholder="Username">
+      <input type="password" id="password" placeholder="Password">
+      <button onclick="login()">Login</button>
+      <button onclick="signup()">Sign Up</button>
+    </div>
+    <div id="chat" style="display:none">
+      <h2>Messenger Group Chat</h2>
+      <div class="messages" id="messages"></div>
+      <input type="text" id="messageInput" placeholder="Type a message...">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let currentUser = null;
+
+    function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      fetch('/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username, password})
+      }).then(res => res.json()).then(user => {
+        currentUser = user;
+        document.getElementById('auth').style.display = 'none';
+        document.getElementById('chat').style.display = 'block';
+        socket.emit('join', user);
+      }).catch(err => alert('Login failed'));
+    }
+
+    function signup() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      fetch('/signup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username, password})
+      }).then(res => {
+        if (res.ok) {
+          alert('Sign up successful. You can log in now.');
+        } else {
+          res.text().then(text => alert(text));
+        }
+      });
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const msg = input.value;
+      if (msg && currentUser) {
+        socket.emit('chatMessage', msg);
+        input.value = '';
+      }
+    }
+
+    socket.on('chatMessage', data => {
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'message';
+      const verifiedBadge = data.isVerified ? ' <span class="verified">✔</span>' : '';
+      div.innerHTML = `<strong>${data.user}${verifiedBadge}:</strong> ${data.text}`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+    socket.on('chatHistory', history => {
+      const messages = document.getElementById('messages');
+      messages.innerHTML = '';
+      history.forEach(data => {
+        const div = document.createElement('div');
+        div.className = 'message';
+        div.innerHTML = `<strong>${data.user}:</strong> ${data.text}`;
+        messages.appendChild(div);
+      });
+    });
+  </script>
+</body>
+</html>
